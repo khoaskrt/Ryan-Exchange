@@ -1,0 +1,350 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id           String    @id @default(cuid())
+  name         String
+  email        String    @unique
+  firebaseUid  String?   @unique
+  passwordHash String
+  country      String    @default("Vietnam")
+  referralCode String?
+  appStatus    AppUserStatus @default(PENDING_EMAIL_VERIFICATION)
+  accountStatus AccountStatus @default(ACTIVE)
+  lastLoginAt  DateTime?
+  firstTradeAt DateTime?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  orders            Order[]
+  trades            Trade[]
+  walletBalances    WalletBalance[]
+  ledgerEntries     LedgerEntry[]
+  wallets           Wallet[]
+  depositAddresses  DepositAddress[]
+  transactions      WalletTransaction[]
+  withdrawalRequests WithdrawalRequest[]
+  walletLedgerEntries WalletLedgerEntry[]
+  inviteRedemptions InviteRedemption[]
+  authAuditLogs     AuthAuditLog[]
+}
+
+model Wallet {
+  id               String       @id @default(cuid())
+  userId           String
+  assetCode        String
+  networkCode      String
+  availableBalance Decimal      @default(0)
+  lockedBalance    Decimal      @default(0)
+  status           WalletStatus @default(ACTIVE)
+  createdAt        DateTime     @default(now())
+  updatedAt        DateTime     @updatedAt
+
+  user             User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+  depositAddresses DepositAddress[]
+  transactions     WalletTransaction[]
+
+  @@unique([userId, assetCode, networkCode])
+  @@index([userId, status])
+  @@map("wallets")
+}
+
+model DepositAddress {
+  id          String               @id @default(cuid())
+  userId      String
+  walletId    String?
+  assetCode   String
+  networkCode String
+  address     String
+  tagMemo     String?
+  provider    String?
+  status      DepositAddressStatus @default(ACTIVE)
+  createdAt   DateTime             @default(now())
+  updatedAt   DateTime             @updatedAt
+
+  user   User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  wallet Wallet? @relation(fields: [walletId], references: [id], onDelete: SetNull)
+
+  @@index([userId, assetCode, networkCode])
+  @@unique([networkCode, address])
+  @@map("deposit_addresses")
+}
+
+model WalletTransaction {
+  txId         String            @id @default(cuid())
+  userId       String
+  walletId     String?
+  type         TransactionType
+  assetCode    String
+  networkCode  String
+  amount       Decimal
+  fee          Decimal           @default(0)
+  status       TransactionStatus @default(PENDING)
+  txHash       String?
+  fromAddress  String?
+  toAddress    String?
+  createdAt    DateTime          @default(now())
+  updatedAt    DateTime          @updatedAt
+
+  user              User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+  wallet            Wallet?            @relation(fields: [walletId], references: [id], onDelete: SetNull)
+  withdrawalRequest WithdrawalRequest?
+  ledgerEntries     WalletLedgerEntry[]
+
+  @@index([userId, createdAt])
+  @@index([type, status, createdAt])
+  @@index([txHash])
+  @@map("transactions")
+}
+
+model WithdrawalRequest {
+  requestId           String                  @id @default(cuid())
+  userId              String
+  transactionId       String                  @unique
+  destinationAddress  String
+  destinationTag      String?
+  riskResult          String?
+  approvalStatus      WithdrawalApprovalStatus @default(PENDING)
+  rejectionReason     String?
+  createdAt           DateTime                @default(now())
+  updatedAt           DateTime                @updatedAt
+
+  user        User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  transaction WalletTransaction @relation(fields: [transactionId], references: [txId], onDelete: Cascade)
+
+  @@index([userId, approvalStatus, createdAt])
+  @@map("withdrawal_requests")
+}
+
+model WalletLedgerEntry {
+  entryId        String          @id @default(cuid())
+  userId         String
+  transactionId  String?
+  entryType      LedgerEntryType
+  amount         Decimal
+  assetCode      String
+  balanceBefore  Decimal
+  balanceAfter   Decimal
+  createdAt      DateTime        @default(now())
+
+  user        User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+  transaction WalletTransaction? @relation(fields: [transactionId], references: [txId], onDelete: SetNull)
+
+  @@index([userId, createdAt])
+  @@index([transactionId])
+  @@map("ledger_entries")
+}
+
+model InviteCode {
+  id        String    @id @default(cuid())
+  code      String    @unique
+  isActive  Boolean   @default(true)
+  maxUses   Int       @default(1)
+  usedCount Int       @default(0)
+  expiresAt DateTime?
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+
+  redemptions InviteRedemption[]
+}
+
+model InviteRedemption {
+  id           String   @id @default(cuid())
+  inviteCodeId String
+  userId       String?
+  email        String
+  createdAt    DateTime @default(now())
+
+  inviteCode InviteCode @relation(fields: [inviteCodeId], references: [id], onDelete: Cascade)
+  user       User?      @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@unique([inviteCodeId, email])
+  @@index([email])
+}
+
+model AuthAuditLog {
+  id            String   @id @default(cuid())
+  eventType     AuthEventType
+  status        AuthEventStatus
+  email         String?
+  userId        String?
+  country       String?
+  providerLabel String?
+  errorCode     String?
+  createdAt     DateTime @default(now())
+
+  user User? @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([eventType, createdAt])
+  @@index([email, createdAt])
+}
+
+model WalletBalance {
+  id        String   @id @default(cuid())
+  userId    String
+  asset     String
+  available Decimal  @default(0)
+  locked    Decimal  @default(0)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, asset])
+}
+
+model LedgerEntry {
+  id          String     @id @default(cuid())
+  userId      String
+  asset       String
+  amount      Decimal
+  entryType   LedgerType
+  referenceId String?
+  note        String?
+  createdAt   DateTime   @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createdAt])
+}
+
+model Order {
+  id           String      @id @default(cuid())
+  userId       String
+  symbol       String
+  side         OrderSide
+  orderType    OrderType
+  price        Decimal?
+  quantity     Decimal
+  filledQty    Decimal     @default(0)
+  avgFillPrice Decimal?
+  status       OrderStatus @default(NEW)
+  createdAt    DateTime    @default(now())
+  updatedAt    DateTime    @updatedAt
+  canceledAt   DateTime?
+
+  user   User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  trades Trade[]
+
+  @@index([userId, createdAt])
+  @@index([symbol, status, createdAt])
+}
+
+model Trade {
+  id        String    @id @default(cuid())
+  orderId   String
+  userId    String
+  symbol    String
+  side      OrderSide
+  price     Decimal
+  quantity  Decimal
+  notional  Decimal
+  createdAt DateTime  @default(now())
+
+  order Order @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  user  User  @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createdAt])
+  @@index([symbol, createdAt])
+}
+
+enum OrderSide {
+  BUY
+  SELL
+}
+
+enum OrderType {
+  MARKET
+  LIMIT
+}
+
+enum OrderStatus {
+  NEW
+  PARTIALLY_FILLED
+  FILLED
+  CANCELED
+  REJECTED
+}
+
+enum LedgerType {
+  PAPER_CREDIT
+  ORDER_FILL
+  ORDER_LOCK
+  ORDER_UNLOCK
+}
+
+enum AccountStatus {
+  ACTIVE
+  PENDING
+  DISABLED
+}
+
+enum AppUserStatus {
+  PENDING_EMAIL_VERIFICATION
+  ACTIVE
+  RESTRICTED
+  SUSPENDED
+}
+
+enum AuthEventType {
+  SIGNUP_ATTEMPT
+  SIGNUP_SUCCESS
+  SIGNUP_FAILURE
+  LOGIN_ATTEMPT
+  LOGIN_SUCCESS
+  LOGIN_FAILURE
+  SSO_CLICK_UNAVAILABLE
+}
+
+enum AuthEventStatus {
+  SUCCESS
+  FAILURE
+}
+
+enum WalletStatus {
+  ACTIVE
+  SUSPENDED
+  CLOSED
+}
+
+enum DepositAddressStatus {
+  ACTIVE
+  DISABLED
+  ROTATED
+}
+
+enum TransactionType {
+  DEPOSIT
+  WITHDRAW
+  INTERNAL_TRANSFER
+}
+
+enum TransactionStatus {
+  PENDING
+  REVIEW
+  PROCESSING
+  CONFIRMED
+  COMPLETED
+  FAILED
+  CANCELED
+}
+
+enum WithdrawalApprovalStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+enum LedgerEntryType {
+  CREDIT
+  DEBIT
+  FEE
+  HOLD
+  RELEASE
+}

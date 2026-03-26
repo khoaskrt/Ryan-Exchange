@@ -4,14 +4,28 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
+    "dev:socket": "node --env-file=.env server.mjs",
     "build": "next build",
-    "start": "next start",
-    "lint": "eslint"
+    "start": "NODE_ENV=production node server.mjs",
+    "lint": "eslint",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "prisma:generate": "prisma generate",
+    "prisma:push": "prisma db push"
   },
   "dependencies": {
+    "@prisma/client": "^6.17.1",
+    "bcryptjs": "^3.0.3",
+    "cookie": "^1.1.1",
+    "firebase": "^12.11.0",
+    "firebase-admin": "^13.7.0",
+    "jose": "^6.2.2",
     "next": "16.2.1",
     "react": "19.2.4",
-    "react-dom": "19.2.4"
+    "react-dom": "19.2.4",
+    "socket.io": "^4.8.3",
+    "socket.io-client": "^4.8.3",
+    "zod": "^4.3.6"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4",
@@ -20,7 +34,9 @@
     "@types/react-dom": "^19",
     "eslint": "^9",
     "eslint-config-next": "16.2.1",
+    "prisma": "^6.17.1",
     "tailwindcss": "^4",
-    "typescript": "^5"
+    "typescript": "^5",
+    "vitest": "^3.2.4"
   }
 }
